@@ -1,0 +1,682 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge,IE=9,IE=EmulateIE9">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Employee Services Landing Page</title>
+    <link rel="shortcut icon" href="/LandingPage/Images/favicon.png">
+   <!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+<!-- Latest compiled and minified JavaScript -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@3.3.7/dist/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.3.0/font/bootstrap-icons.css">
+    <script src="https://code.jquery.com/jquery-3.5.1.js"></script>
+    <script src="http://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js" type="text/javascript"></script>
+    <link href="/LandingPage/Css/jquery.mCustomScrollbar.min.css" rel="stylesheet" />
+    <link href="/LandingPage/Css/style.css?v=10102018" rel="stylesheet" />
+    <link href="/LandingPage/fonts/font.css" rel="stylesheet" />
+    <link href="/LandingPage/Css/font-awesome.min.css" rel="stylesheet">
+
+    
+    <style type="text/css">
+
+    #startRecordingWebApp{
+        display: inline;
+    }
+    #outputText{
+        display: inline;
+    }
+    /*------------------Alert Box-------------------------------*/
+    #advmodaldialog .modal-content
+    {
+        border-radius: 0px !important;
+        box-shadow: none !important;
+    }
+
+    #advmodaldialog .modal-header,
+    #advmodaldialog .modal-footer
+    {
+        border: none !important;
+    }
+    
+    #advmodaldialog .btn:hover
+    {
+        color:#fff!important;
+    }
+    #advmodaldialog .modal-dialog
+    {
+        margin-top: 40vh !important;
+    } 
+    /*------------------Alert Box-------------------------------*/
+    </style>
+    <script>
+       
+        var leftchannel = [];
+         var rightchannel = [];
+         var recorder = null;
+         var recordingLength = 0;
+         var volume = null;
+         var mediaStream = null;
+         var sampleRate = 44100;
+         var context = null;
+         var blob = null;
+ 
+         $(document).on('click','.bi-mic',function(){
+ 
+             leftchannel = [];
+             rightchannel = [];
+             recorder = null;
+             recordingLength = 0;
+             volume = null;
+             mediaStream = null;
+             sampleRate = 44100;
+             context = null;
+             blob = null;
+ 
+             console.log("hi mike input");
+             $("#startRecordingWebApp").removeClass("bi bi-mic");
+         $("#startRecordingWebApp").removeClass("btn-primary");
+         $(this).toggleClass('bi-mic-fill');
+         $(this).toggleClass('btn-danger');
+ 
+ 
+             // Initialize recorder
+            // Initialize recorder
+            navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
+             navigator.getUserMedia(
+             {
+                 audio: true
+             },
+             function (e) {
+                 console.log("user consent");
+ 
+                 // creates the audio context
+                 window.AudioContext = window.AudioContext || window.webkitAudioContext;
+                 context = new AudioContext();
+ 
+                 // creates an audio node from the microphone incoming stream
+                 mediaStream = context.createMediaStreamSource(e);
+ 
+                 // https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/createScriptProcessor
+                 // bufferSize: the onaudioprocess event is called when the buffer is full
+                 var bufferSize = 2048;
+                 var numberOfInputChannels = 2;
+                 var numberOfOutputChannels = 2;
+                 if (context.createScriptProcessor) {
+                     recorder = context.createScriptProcessor(bufferSize, numberOfInputChannels, numberOfOutputChannels);
+                 } else {
+                     recorder = context.createJavaScriptNode(bufferSize, numberOfInputChannels, numberOfOutputChannels);
+                 }
+ 
+                 recorder.onaudioprocess = function (e) {
+                     leftchannel.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+                     rightchannel.push(new Float32Array(e.inputBuffer.getChannelData(1)));
+                     recordingLength += bufferSize;
+                 }
+ 
+                 // we connect the recorder
+                 mediaStream.connect(recorder);
+                 recorder.connect(context.destination);
+             },
+                         function (e) {
+                             console.error(e);
+                         });
+         });
+ 
+         $(document).on('click','.bi-mic-fill',function(){
+             console.log("hi mike input exit");
+             $("#startRecordingWebApp").removeClass("bi-mic-fill");
+         $("#startRecordingWebApp").removeClass("btn-danger");
+         $(this).toggleClass("bi-mic");
+         $(this).toggleClass("btn-primary");
+                 // stop recording
+             recorder.disconnect(context.destination);
+             mediaStream.disconnect(recorder);
+ 
+             // we flat the left and right channels down
+             // Float32Array[] => Float32Array
+             var leftBuffer = flattenArray(leftchannel, recordingLength);
+             var rightBuffer = flattenArray(rightchannel, recordingLength);
+             // we interleave both channels together
+             // [left[0],right[0],left[1],right[1],...]
+             var interleaved = interleave(leftBuffer, rightBuffer);
+ 
+             // we create our wav file
+             var buffer = new ArrayBuffer(44 + interleaved.length * 2);
+             var view = new DataView(buffer);
+ 
+             // RIFF chunk descriptor
+             writeUTFBytes(view, 0, 'RIFF');
+             view.setUint32(4, 44 + interleaved.length * 2, true);
+             writeUTFBytes(view, 8, 'WAVE');
+             // FMT sub-chunk
+             writeUTFBytes(view, 12, 'fmt ');
+             view.setUint32(16, 16, true); // chunkSize
+             view.setUint16(20, 1, true); // wFormatTag
+             view.setUint16(22, 2, true); // wChannels: stereo (2 channels)
+             view.setUint32(24, sampleRate, true); // dwSamplesPerSec
+             view.setUint32(28, sampleRate * 4, true); // dwAvgBytesPerSec
+             view.setUint16(32, 4, true); // wBlockAlign
+             view.setUint16(34, 16, true); // wBitsPerSample
+             // data sub-chunk
+             writeUTFBytes(view, 36, 'data');
+             view.setUint32(40, interleaved.length * 2, true);
+ 
+             // write the PCM samples
+             var index = 44;
+             var volume = 1;
+             for (var i = 0; i < interleaved.length; i++) {
+                 view.setInt16(index, interleaved[i] * (0x7FFF * volume), true);
+                 index += 2;
+             }
+ 
+             // our final blob
+             blob = new Blob([view], { type: 'audio/wav' });
+ 
+             //var audiofile = new File([new Blob([view], { type: 'audio/wav' })], "test.wav", {type:"audio/wav"});
+             //console.log(audiofile+"audiofile")
+             //console.log(audiofile)
+ 
+             var fd=new FormData();
+              console.log(blob)
+                fd.append("audio_data",blob);	
+              fd.append("ntid", "dch2kor");
+              fd.append("csrfmiddlewaretoken","{{csrf_token}}");
+              $.ajax({
+                  type: 'POST',
+                 crossDomain: false,
+                 processData: false,
+                 contentType: false,
+                 dataType:"json",
+                  url: '../uploadwavblob',
+                  data: fd,
+                  headers: {
+                      "accept": "application/json",
+                      "Access-Control-Allow-Origin": "*"
+                  },
+                 mimeType:"multipart/form-data",
+                 success: function (response) {
+                     console.log(response);
+                     console.log(response[0]);
+                     console.log(response[1]);
+                     if (response[0] == 'novoice') {
+                         alert('No voice recognised');
+                     } else {
+                         $("#outputText").empty();
+                         document.getElementById("outputText").append(response[0]);
+                         console.log(response[0]);
+                         if (response[1] == 'Noconfig') {
+                             alert('No config recognised');
+                         } else {
+                             window.open(response[1], '_blank');
+                         }
+ 
+                     }
+                 }
+             });
+ 
+ 
+         });
+ 
+ 
+         function flattenArray(channelBuffer, recordingLength) {
+             var result = new Float32Array(recordingLength);
+             var offset = 0;
+             for (var i = 0; i < channelBuffer.length; i++) {
+                 var buffer = channelBuffer[i];
+                 result.set(buffer, offset);
+                 offset += buffer.length;
+             }
+             return result;
+         }
+ 
+         function interleave(leftChannel, rightChannel) {
+             var length = leftChannel.length + rightChannel.length;
+             var result = new Float32Array(length);
+ 
+             var inputIndex = 0;
+ 
+             for (var index = 0; index < length;) {
+                 result[index++] = leftChannel[inputIndex];
+                 result[index++] = rightChannel[inputIndex];
+                 inputIndex++;
+             }
+             return result;
+         }
+ 
+         function writeUTFBytes(view, offset, string) {
+             for (var i = 0; i < string.length; i++) {
+                 view.setUint8(offset + i, string.charCodeAt(i));
+             }
+         }
+ 
+       
+ 
+     </script>
+</head>
+<body class="main_bg">
+
+    <!-- Navbar   -->
+    <nav class="navbar navbar-inverse top-navigation">
+        <section class="bosch-logo-strip"></section>
+        <div class="container">
+            <div class="navbar-header">
+                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#myNavbar">
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                    <span class="icon-bar"></span>
+                </button>
+                <a class="O-Header__brandLogo">
+                  
+
+
+                    <h4 class="A-Text__brandIdentifier u-TextColor--darkBlue">Employee <strong>Services</strong> <strong style="color:red"></strong></h4>
+
+
+
+                    <div class="u-TextColor--darkBlue" style="font-size:medium;margin-left: 8%;"> Landing Page </div>
+                </a>
+            </div>
+
+            <div class="collapse navbar-collapse" id="myNavbar">
+                <ul class="nav navbar-nav navbar-right top-navbar">
+                    <li><a href="https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-rbei_home-EN" target="_blank">BGSW BGN</a></li>
+                    <li><a href="http://www.bosch-india-software.com" target="_blank">BGSW Website</a></li>
+                </ul>
+            </div>
+
+            <div class="col-xs-12 secound-header">
+                <h3 class="text-center">Hello <span class="f-bold">Dinesh Kumar Chandra Sekar</span></h3>
+                <div class="form-group col-md-6 col-md-offset-3 search-box m-t-25">
+                    <input type="text" class="form-control input-lg main-search" id="txtSearch" name="txtSearch" />
+                    <label>What do you want to do?</label>
+                    <span class="search-clear">&times;</span>
+                    <div class="search-box-drop">
+                        <div class="list-group" id="searchlinkbind">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <!-- End of Navbar -->
+
+    <div class="main-container-section container">
+        <div class="row">
+            <div class="col-md-12 favourite-links clearfix p-l-0">
+                <div class="col-xs-12 no-padding services">
+                    <div class="col-md-2 col-sm-6 card-wrapper">
+                        <div class="card clearfix service0">
+                            <div class="c-bar c-bar0"></div>
+                            <div class="c-data">
+                                <a style="position:absolute;top:30px;right:10px;"><img src="/LandingPage/images/hr_selfservice.png" alt=""></a>
+                                <h4 class="u-TextColor--fuchsia">HR Self Services</h4>
+                                <p class="u-TextColor--violet">&nbsp;</p>
+                                <div class="col-xs-12 no-padding services-card-action">
+                                    <p class="u-TextColor--fuchsia m-t-45">Certificate / Letter Request, IdBadge Request and TalentHub..</p>
+                                </div>
+                            </div>
+                            <div class="c-caption">
+                                <ul class="list-unstyled">
+                                    <li><img src="/LandingPage/images/ticket.png" alt=""><a href="https://inside.bosch.com/irj/portal?NavigationTarget=navurl://3a39ccffa8fa66f9735221288a020641&ExecuteLocally=true&NavPathUpdate=true " target="_blank">HR Service</a></li>
+                                    <li><img src="/LandingPage/images/phone.png" alt=""><a href="im:sip:HRIndia.Support@in.bosch.com">Escalations Call 7711</a> </li>
+                                    
+                                    
+                                    
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-6 card-wrapper">
+                        <div class="card clearfix service1">
+                            <div class="c-bar c-bar1"></div>
+                            <div class="c-data">
+                                <a style="position:absolute;top:30px;right:10px;"><img src="/LandingPage/images/setting.png" alt=""></a>
+                                <h4 class="u-TextColor--fuchsia">IT Services</h4>
+                                <p class="u-TextColor--violet">&nbsp;</p>
+                                <div class="col-xs-12 no-padding services-card-action">
+                                    <p class="u-TextColor--fuchsia m-t-45">Manage your Access and Permission, Software Installation, Email Services..</p>
+                                </div>
+                            </div>
+                            <div class="c-caption">
+                                <ul class="list-unstyled">
+                                    <li><img src="/LandingPage/images/ticket.png" alt=""><a href="https://rb-servicecatalog.apps.intranet.bosch.com/RequestCenter/servicecatalog/servicecatalog.do;jsessionid=ZlyhXVnIJPTp8iYlYDZzLIRb.si0vm1659?resetBN=true&resetBN=true" target="_blank">Request IT Service</a> <a href="https://inside-docupedia.bosch.com/confluence/pages/viewpage.action?pageId=145586928" target="_blank" class="pull-right" data-toggle="tooltip" data-placement="left" title="How do I?"><span class="glyphicon glyphicon-question-sign"></span></a></li>
+                                    
+                                    <li><img src="/LandingPage/images/phone.png" alt=""><a href="im:sip:ITServiceDesk@bosch.com">Call 3311(000 800 4401 880)</a></li>
+                                    
+                                    <li><img src="/LandingPage/images/email.png" alt=""><a href="mailto://ITServiceDesk@bosch.com">ITServiceDesk@bosch.com</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-6 card-wrapper">
+                        <div class="card clearfix service2">
+                            <div class="c-bar c-bar2"></div>
+                            <div class="c-data">
+                                <a style="position:absolute;top:30px;right:10px;"><img src="/LandingPage/images/it_infrastructure.png" alt=""></a>
+                                <h4 class="u-TextColor--violet">IT Infra Support</h4>
+                                <p class="u-TextColor--violet">&nbsp;</p>
+                                <div class="col-xs-12 no-padding services-card-action">
+                                    <p class="u-TextColor--violet m-t-45">Help desk for Server, Network, Skype and Hardware...</p>
+                                </div>
+                            </div>
+                            <div class="c-caption">
+                                <ul class="list-unstyled">
+                                    <li><img src="/LandingPage/images/ticket.png" alt=""><a id="incidentID">Raise IT Infra Support Ticket</a><a href="https://inside-docupedia.bosch.com/confluence/pages/viewpage.action?pageId=145586928" target="_blank" class="pull-right" style="position:absolute;top:20px;right:10px" data-toggle="tooltip" data-placement="left" title="How do I?"><span class="glyphicon glyphicon-question-sign"></span></a></li>
+                                    
+                                    <li><img src="/LandingPage/images/phone.png" alt=""><a href="im:sip:ITServiceDesk@bosch.com">Call 3311(000 800 4401 880)</a></li>
+                                    
+                                    <li><img src="/LandingPage/images/email.png" alt=""><a href="mailto://ITServiceDesk@bosch.com">ITServiceDesk@bosch.com</a></li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-6 card-wrapper">
+                        <div class="card clearfix service3">
+                            <div class="c-bar  c-bar3"></div>
+                            <div class="c-data">
+                                <a style="position:absolute;top:30px;right:10px;"><img src="/LandingPage/images/RBEI_IT_applications.png" alt=""></a>
+                                <h4 class="u-TextColor--darkBlue">BGSW IT Application</h4>
+                                <p class="u-TextColor--darkBlue m-t-15">&nbsp;</p>
+                                <div class="no-padding services-card-action">
+                                    <p class="u-TextColor--darkBlue m-t-45">Help Desk for PRIME, PROMISE, SWIFT, RADAR and Purchase Requisition...</p>
+                                </div>
+                            </div>
+                            <div class="c-caption">
+                                <ul class="list-unstyled">
+                                    
+
+                                    
+
+                                    
+
+                                    
+                                    <li><img src="/LandingPage/images/ticket.png" alt=""><a href="https://unichat-ci-rbei-atm.osh.bosch.com/home/index?b=9066beca-d9f4-49b0-a399-9b923373507e" target="_blank">IT Application Support Bot</a></li>
+                                    
+
+                                    <li><img src="/LandingPage/images/ticket.png" alt=""><a href="http://sgpvmc0251/otrs/customer.pl?" target="_blank">Raise Ticket</a></li>
+                                    
+                                    <li><img src="/LandingPage/images/phone.png" alt=""><a href="im:sip:RBEI.IT.ApplicationSupport@bosch.com">Call 6611</a></li>
+                                    
+                                    
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-2 col-sm-1 card-wrapper">
+                        <h4 class="u-TextColor--darkBlue">ESS voice Assistant</h4>
+                        <br/>
+                        <button class="btn btn-primary bi bi-mic" id="startRecordingWebApp"></button>
+                        <button class="btn btn-primary bi bi-info-circle"  ></button>
+                        <p id="outputText"> </p>
+                       <div id="helpButton"></div>
+                          
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- favourite row start  -->
+        <div class="row m-t-5 d-m-t-0">
+            <div class="col-md-3 favourites">
+                <div class="fav-card m-t-5 clearfix fav-card-list">
+                    <div class="fav-card-header">
+                        <h4>Favourites <span class="fa fa-star pull-right star"></span></h4>
+                    </div>
+                    <div class="fav-card-content">
+                        <ul class="list-unstyled" id="ulloadfavourites"></ul>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9 favourite-links clearfix p-l-0 tm-p-r-0">
+                <div class="col-xs-12 no-padding m-t-5 fav-card-grid">
+                    <div class="fav-card">
+                                        <div class="f-card back1 item item0" data-item="0">
+                                            <h4>Associate Applications</h4>
+                                            <div class="f-icon">
+                                                <img alt="" src="/landingpage//Images/AssociateRelated.png" />
+                                            </div>
+                                            <div class="triangle-up1"></div>
+                                        </div>
+                                        <div class="f-card back2 item item1" data-item="1">
+                                            <h4>Assets and Purchases</h4>
+                                            <div class="f-icon">
+                                                <img alt="" src="/landingpage//Images/Asset.png" />
+                                            </div>
+                                            <div class="triangle-up1"></div>
+                                        </div>
+                                        <div class="f-card back3 item item2" data-item="2">
+                                            <h4>Help Desk</h4>
+                                            <div class="f-icon">
+                                                <img alt="" src="/landingpage//Images/HelpDesk.png" />
+                                            </div>
+                                            <div class="triangle-up1"></div>
+                                        </div>
+                                        <div class="f-card back4 item item3" data-item="3">
+                                            <h4>Learning</h4>
+                                            <div class="f-icon">
+                                                <img alt="" src="/landingpage//Images/Learning.png" />
+                                            </div>
+                                            <div class="triangle-up1"></div>
+                                        </div>
+
+                    </div>
+
+                    <div class="fav-card-content fav-drop-card"><div class="col-xs-12 p-0 item-content0"><div class="col-md-12"><h4>Associate Applications</h4><div class="col-md-6 p-l-0"><ul class="list-unstyled"><li><a title='' onclick='saveApplicationUsage("317","Associate Cost Dashboard")' href="javascript:OpenPROMISE('http://banvm034.apac.bosch.com/CICost/')" style='cursor:pointer'>Associate Cost Dashboard&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Associate Cost Dashboard " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://sgpvm070:8080/pkit/go/pelement.do?id=346356&type=Artifact&anon=1");saveApplicationUsage("312","BEST Policy")' style='cursor:pointer' >BEST Policy&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='saveApplicationUsage("313","BEST Video (Firefox Only)")' href="javascript:OpenPROMISE('https://videoken.com/embed?videoID=vken-MZnXnrIUTtg&internalSearch=0&share=0&phrasecontext=0')" style='cursor:pointer'>BEST Video (Firefox Only)&nbsp;</a><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://alumni.bosch-india-software.com/");saveApplicationUsage("371","BGSW Alumni Network")' style='cursor:pointer' >BGSW Alumni Network&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt BGSW Alumni Network " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("364","Bosch Skill Hub (Edge, Firefox, Chrome)")' href="javascript:OpenPROMISE('https://bosch.hitch.works')" style='cursor:pointer'>Bosch Skill Hub (Edge, Firefox, Chrome)&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Bosch Skill Hub (Edge, Firefox, Chrome) " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='Use Firefox for best performance' onclick='saveApplicationUsage("224","Shabash – Celebrations and Recognitions")' href="https://bosch.vantagecircle.com" style='cursor:pointer'>Shabash – Celebrations and Recognitions&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Shabash – Celebrations and Recognitions " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://portal.medibuddy.in/Home.aspx");saveApplicationUsage("244","e-Buddy")' style='cursor:pointer' >e-Buddy&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt e-Buddy " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='Associate swipe information' onclick='OpenInSeparateWindow("http://banvm034.apac.bosch.com/SwipeInformation/Home/Login");saveApplicationUsage("267","Entry/Exit Information")' style='cursor:pointer' >Entry/Exit Information&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Entry/Exit Information " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='2012-2013 Onwards' onclick='saveApplicationUsage("206","Form-16")' href="/MIS_Form16_2013/EmpView.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Form-16&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Form-16 " data-toggle="tooltip" title="Add to favourite"></span></li></ul></div><div class="col-md-6 tm-p-l-0"><ul class="list-unstyled"><li><a title='For Time, Payroll and Personal data related' onclick='OpenInSeparateWindow("https://inside.bosch.com/irj/portal/fiori#Shell-home");saveApplicationUsage("112","HR Core ESS/MSS (IE Only)")' style='cursor:pointer' >HR Core ESS/MSS (IE Only)&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg HR Core ESS/MSS (IE Only) " data-toggle="tooltip" title="Remove from favourite"  ></span></li><li><a title='' onclick='OpenInSeparateWindow("https://rb-wam-saml.bosch.com/tfim/sps/successfactors/saml20/logininitial?RelayState=%2Fxi%2Fui%2Fhome%2Fpages%2Fhome.xhtml&RequestBinding=HTTPPost&PartnerId=https://www.successfactors.com&NameIdFormat=Email");saveApplicationUsage("240","HR Global")' style='cursor:pointer' >HR Global&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg HR Global " data-toggle="tooltip" title="Remove from favourite"  ></span></li><li><a title='' onclick='saveApplicationUsage("194","PF Related")' href="https://www.ess.adp.in/ESS4/" style='cursor:pointer'>PF Related&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt PF Related " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://rb-spark-bithub.apac.bosch.com:2021/Sparki/Pages/index.aspx");saveApplicationUsage("370","Spark-i")' style='cursor:pointer' >Spark-i&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Spark-i " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://banvm034.apac.bosch.com/HRPortal/foremployees.html");saveApplicationUsage("324","New Joiner Welcome Page")' style='cursor:pointer' >New Joiner Welcome Page&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt New Joiner Welcome Page " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://connect.bosch.com/communities/service/html/communitystart?communityUuid=06eaed0e-e14e-4d17-a311-8f4ad27769e6");saveApplicationUsage("359","#FitForFuture")' style='cursor:pointer' >#FitForFuture&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt #FitForFuture " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://proview.apac.bosch.com:8443/pkit/go/pelement.do?id=13619&type=Artifact");saveApplicationUsage("323","#Fit.HRX - House of Roles Xcellence")' style='cursor:pointer' >#Fit.HRX - House of Roles Xcellence&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt #Fit.HRX - House of Roles Xcellence " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("350","TalentHub (IJR / Referrals)")' href="https://www.smartrecruiters.com/web-sso/saml/BoschGroup/login" style='cursor:pointer'>TalentHub (IJR / Referrals)&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt TalentHub (IJR / Referrals) " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("357","Employee Discount Portal-BSH Products (Firefox)")' href="javascript:OpenPROMISE('https://esp.bsh-group.com/employee-login')" style='cursor:pointer'>Employee Discount Portal-BSH Products (Firefox)&nbsp;</a><span class="fa fa-info pull-right fa-lg"></span></li></div></div></div></div><div class="fav-card-content fav-drop-card"><div class="col-xs-12 p-0 item-content1"><div class="col-md-12"><h4>Assets and Purchases</h4><div class="col-md-6 p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("https://inside.bosch.com/irj/portal?NavigationTarget=navurl://b936bc4b8b3980c4bd262610e3a750f1");saveApplicationUsage("154","Asset Management Tool")' style='cursor:pointer' >Asset Management Tool&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg Asset Management Tool " data-toggle="tooltip" title="Remove from favourite"  ></span></li><li><a title='SLIM(Smart Lab equIpment Management)' onclick='saveApplicationUsage("347","SLIM (e-Yantrakosh) (Firefox Only)")' href="javascript:OpenPROMISE('https://BANVM034.apac.bosch.com/eYantrakosh')" style='cursor:pointer'>SLIM (e-Yantrakosh) (Firefox Only)&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt SLIM (e-Yantrakosh) (Firefox Only) " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("366","IT Peripherals Ordering")' href="/ITP/" style='cursor:pointer'>IT Peripherals Ordering&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt IT Peripherals Ordering " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("/LAL/");saveApplicationUsage("336","Laptop Authorization Letter")' style='cursor:pointer' >Laptop Authorization Letter&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Laptop Authorization Letter " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside.bosch.com/irj/portal?NavigationTarget=navurl://50c9cc0811032920e0a2b42a22b30afa");saveApplicationUsage("156","Material Gate Pass")' style='cursor:pointer' >Material Gate Pass&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Material Gate Pass " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='MMT' onclick='saveApplicationUsage("307","Material Movement Tool")' href="/MMT/" style='cursor:pointer'>Material Movement Tool&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Material Movement Tool " data-toggle="tooltip" title="Add to favourite"></span></li></ul></div><div class="col-md-6 tm-p-l-0"><ul class="list-unstyled"><li><a title='' onclick='saveApplicationUsage("213","Online Payment Voucher (IE Only)")' href="/OnlinePaymentVoucher/Home.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Online Payment Voucher (IE Only)&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Online Payment Voucher (IE Only) " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='Online visiting card request' onclick='OpenInSeparateWindow("http://business.printo.in/bosch/index.php?auth_token=8242346872340928324892374234");saveApplicationUsage("261","Online visiting card request")' style='cursor:pointer' >Online visiting card request&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Online visiting card request " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://rb3peia0.server.bosch.com:8078/sap/bc/webdynpro/rbe2/mm_wda_po_rep?sap-language=EN");saveApplicationUsage("343","Purchase Information Report")' style='cursor:pointer' >Purchase Information Report&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Purchase Information Report " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("155","Purchase Requisition")' href='Home/CallPostMethod?url=/PurchaseRequisition/PurchaseLoginPage.aspx' style='cursor:pointer' > Purchase Requisition&nbsp;</a><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg Purchase Requisition " data-toggle="tooltip" title="Remove from favourite"  ></span></li><li><a title='SIM/Dongle Management System' onclick='saveApplicationUsage("294","SIM/Dongle Management System")' href="http://sgpvmc0197.apac.bosch.com/simdongle/home" style='cursor:pointer'>SIM/Dongle Management System&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt SIM/Dongle Management System " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='My i-Buy Virtual Company Mall- Indirect purchase' onclick='saveApplicationUsage("305","My i-Buy Virtual Company Mall")' href='Home/CallPostMethod?url=https://bosch.wescale.com%2Fapp%2F%23%2Fdashboard' style='cursor:pointer' > My i-Buy Virtual Company Mall&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt My i-Buy Virtual Company Mall " data-toggle="tooltip" title="Add to favourite"></span></li></div></div></div></div><div class="fav-card-content fav-drop-card"><div class="col-xs-12 p-0 item-content2"><div class="col-md-12"><h4>Help Desk</h4><div class="col-md-6 p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("/helpdesk/EmployeeServicesContact.asp?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951");saveApplicationUsage("131","Employee Services Contact")' style='cursor:pointer' >Employee Services Contact&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Employee Services Contact " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("214","FCM Helpdesk")' href="/FCMHelpdesk/Home.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>FCM Helpdesk&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt FCM Helpdesk " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("230","General Helpdesk")' href="/GH/Home.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>General Helpdesk&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt General Helpdesk " data-toggle="tooltip" title="Add to favourite"></span></li></ul></div><div class="col-md-6 tm-p-l-0"><ul class="list-unstyled"><li><a title='Mail room services' onclick='saveApplicationUsage("256","Mail room services")' href="/PTR/Home.aspx?act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Mail room services&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Mail room services " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='To request support of Resident Engineer for any Video conference related support' onclick='OpenInSeparateWindow("file://///bosch.com/DfsRB/DfsIN/LOC/Kor/COR/ICO/02_Public/01_General_Information/03_others/Video_Conferencing_Services/VC_Support_Request_Mail.oft");saveApplicationUsage("233","VC Support Request")' style='cursor:pointer' >VC Support Request&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt VC Support Request " data-toggle="tooltip" title="Add to favourite"></span></li></div></div></div></div><div class="fav-card-content fav-drop-card"><div class="col-xs-12 p-0 item-content3"><div class="col-md-12"><h4>Learning</h4><div class="col-md-6 p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("https://connect.bosch.com/communities/service/html/communitystart?communityUuid=a2a5c7f8-5e15-4e67-acc3-9ddf8c84c04d");saveApplicationUsage("329","Bosch Connect: Learning & Development")' style='cursor:pointer' >Bosch Connect: Learning & Development&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://rb-boschlearningspace.bosch.com/accelerator/index.do");saveApplicationUsage("342","Bosch Learning Space")' style='cursor:pointer' >Bosch Learning Space&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Bosch Learning Space " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://connect.bosch.com/wikis/home?lang=en-us#!/wiki/W0092bf281282_42f0_94d7_818ca1ce8676/page/First%20Steps");saveApplicationUsage("237","Getting started - Bosch-Connect")' style='cursor:pointer' >Getting started - Bosch-Connect&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://banvm034.apac.bosch.com/JKLAcademy/JKLCalendar");saveApplicationUsage("265","Internal Training Calendar")' style='cursor:pointer' >Internal Training Calendar&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='JKL Academy' onclick='saveApplicationUsage("289","JKL Academy")' href="javascript:OpenPROMISE('http://banvm034.apac.bosch.com/JKLAcademy')" style='cursor:pointer'>JKL Academy&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt JKL Academy " data-toggle="tooltip" title="Add to favourite"></span></li></ul></div><div class="col-md-6 tm-p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-K_Centre_HomePage_2-EN");saveApplicationUsage("202","K-Center – Home Page")' style='cursor:pointer' >K-Center – Home Page&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-About_KM-EN");saveApplicationUsage("180","Knowledge Management (Portal)")' style='cursor:pointer' >Knowledge Management (Portal)&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://sgpvm070:8080/pkit/go/pelement.do?id=109150&type=Artifact&anon=1");saveApplicationUsage("147","Training Request Form (TNRF)")' style='cursor:pointer' >Training Request Form (TNRF)&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://rb-wam-saml.bosch.com/tfim/sps/successfactors/saml20/logininitial?RelayState=/sf/learning?destUrl=https://bosch.plateau.com/learning/user/deeplink_redirect.jsp?linkId=LEARNING_PLAN&amp;fromSF=Y&amp;company=BOSCH&amp;RequestBinding=HTTPPost&amp;PartnerId=https://www.successfactors.com&amp;NameIdFormat=Email");saveApplicationUsage("264","TrainM – HR Global")' style='cursor:pointer' >TrainM – HR Global&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt TrainM – HR Global " data-toggle="tooltip" title="Add to favourite"></span></li></div></div></div></div>
+
+                    <div style="height:3px;"></div>
+                    <div class="fav-card">
+                                    <div class="f-card back5 item item4" data-item="4">
+                                        <h4>Projects</h4>
+                                        <div class="f-icon">
+                                            <img src=/landingpage//Images/Project.png alt="" />
+                                        </div>
+                                        <div class="triangle-up1"></div>
+                                    </div>
+                                    <div class="f-card back6 item item5" data-item="5">
+                                        <h4>Travel</h4>
+                                        <div class="f-icon">
+                                            <img src=/landingpage//Images/Travel.png alt="" />
+                                        </div>
+                                        <div class="triangle-up1"></div>
+                                    </div>
+                                    <div class="f-card back7 item item6" data-item="6">
+                                        <h4>Audit &amp; Surveys</h4>
+                                        <div class="f-icon">
+                                            <img src=/landingpage//Images/AuditSurvey.png alt="" />
+                                        </div>
+                                        <div class="triangle-up1"></div>
+                                    </div>
+                                    <div class="f-card back8 item item7" data-item="7">
+                                        <h4>General</h4>
+                                        <div class="f-icon">
+                                            <img src=/landingpage//Images/Others.png alt="" />
+                                        </div>
+                                        <div class="triangle-up1"></div>
+                                    </div>
+
+                    </div>
+                    <div class="fav-card-content fav-drop-card"><div class="col-xs-12 p-0 item-content4"><div class="col-md-12"><h4>Projects</h4><div class="col-md-6 p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("http://rb3peia0.server.bosch.com:8078/sap/bc/gui/sap/its//webgui?~TRANSACTION=/RBE2/CO_PS_POST_SUM");saveApplicationUsage("354","Employee allocation cost (including ICT)")' style='cursor:pointer' >Employee allocation cost (including ICT)&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Employee allocation cost (including ICT) " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://connect.bosch.com/communities/service/html/communityview?communityUuid=2e942f4b-5f7f-4ad2-8ec1-a273352dc13e");saveApplicationUsage("225","LLBP - Bosch Connect")' style='cursor:pointer' >LLBP - Bosch Connect&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='saveApplicationUsage("362","Outsourcing Management(Firefox Only)")' href="javascript:OpenPROMISE('https://banvm034.apac.bosch.com/OutSourcing')" style='cursor:pointer'>Outsourcing Management(Firefox Only)&nbsp;</a><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://rb-wam-ap.bosch.com/rbei-plw-prod");saveApplicationUsage("332","Planisware")' style='cursor:pointer' >Planisware&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-prime.bosch.com/PWA/RBEI/default.aspx");saveApplicationUsage("162","PRIME 2.0")' style='cursor:pointer' >PRIME 2.0&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg PRIME 2.0 " data-toggle="tooltip" title="Remove from favourite"  ></span></li></ul></div><div class="col-md-6 tm-p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("https://sgpvm00425.apac.bosch.com/integrationhub");saveApplicationUsage("356","Integration Hub")' style='cursor:pointer' >Integration Hub&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='saveApplicationUsage("234","PROMISE(Firefox Only)")' href="javascript:OpenPROMISE('http://sgp-promiserbei.apac.bosch.com/PROMISE')" style='cursor:pointer'>PROMISE(Firefox Only)&nbsp;</a><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg PROMISE(Firefox Only) " data-toggle="tooltip" title="Remove from favourite"  ></span></li><li><a title='' onclick='OpenInSeparateWindow("https://sgpvm00439.apac.bosch.com/PRISM/prism");saveApplicationUsage("358","PRISM (not supported in IE)")' style='cursor:pointer' >PRISM (not supported in IE)&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt PRISM (not supported in IE) " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://rb-wam-ap.bosch.com/workon03ap/secure/CreateIssue.jspa?pid=10500&issuetype=119");saveApplicationUsage("238","BGSW eAgreement")' style='cursor:pointer' >BGSW eAgreement&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt BGSW eAgreement " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("365","TCM – Total Contract Management")' href="javascript:OpenPROMISE('https://sourcing.purchasing.bosch.tech/esop/authenticate/saml/login')" style='cursor:pointer'>TCM – Total Contract Management&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt TCM – Total Contract Management " data-toggle="tooltip" title="Add to favourite"></span></li></div></div></div></div><div class="fav-card-content fav-drop-card"><div class="col-xs-12 p-0 item-content5"><div class="col-md-12"><h4>Travel</h4><div class="col-md-6 p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("http://sgpvm070:8080/pkit/go/pelement.do?id=57204&type=Process&anon=1");saveApplicationUsage("270","Details on Transport Services")' style='cursor:pointer' >Details on Transport Services&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='Used to avail/ change/ cancel the local transport service / New route suggestion' onclick='saveApplicationUsage("198","Employee Transport Services")' href="/OTS/Home.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Employee Transport Services&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Employee Transport Services " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://sgpclb300001a.lbaas.sg1.bosch-iot-cloud.com/#/login");saveApplicationUsage("302","Green ride Service")' style='cursor:pointer' >Green ride Service&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Green ride Service " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://sgpvmc0145.apac.bosch.com/taxiIndent/");saveApplicationUsage("249","BGSW Taxi Indent System")' style='cursor:pointer' >BGSW Taxi Indent System&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt BGSW Taxi Indent System " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='Works in Internet Explorer Only' onclick='saveApplicationUsage("172","SWIFT Deputation & Travel (IE Only)")' href="https://inside.bosch.com/irj/portal?NavigationTarget=navurl://b1409ca67d9d67346295ee7c0a242f59&ExecuteLocally=true&NavPathUpdate=true" style='cursor:pointer'>SWIFT Deputation & Travel (IE Only)&nbsp;</a><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg SWIFT Deputation & Travel (IE Only) " data-toggle="tooltip" title="Remove from favourite"  ></span></li></ul></div><div class="col-md-6 tm-p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("file://///bosch.com/DfsRB/DfsIN/LOC/Kor/COR/ICO/02_Public/01_General_Information/03_others/Travel_Contacts/TD%20Contact%20Details.pptx");saveApplicationUsage("223","Travel Contacts")' style='cursor:pointer' >Travel Contacts&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://proview.apac.bosch.com:8443/pkit/go/pelement.do?id=6202&type=Process");saveApplicationUsage("272","Travel Information")' style='cursor:pointer' >Travel Information&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-Transportation_Services-EN");saveApplicationUsage("268","View Shuttle Details Ban")' style='cursor:pointer' >View Shuttle Details Ban&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-new_shuttle_services-EN");saveApplicationUsage("269","View Shuttle Details Cob")' style='cursor:pointer' >View Shuttle Details Cob&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://sgpvm070:8080/pkit/go/pelement.do?id=57204&type=Process&anon=1");saveApplicationUsage("271","View Transport Policy")' style='cursor:pointer' >View Transport Policy&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li></div></div></div></div><div class="fav-card-content fav-drop-card"><div class="col-xs-12 p-0 item-content6"><div class="col-md-12"><h4>Audit & Surveys</h4><div class="col-md-6 p-l-0"><ul class="list-unstyled"><li><a title='' onclick='saveApplicationUsage("246","Mindfulness Meditation Survey")' href="/mindfulnessmeditation/landingpage.aspx?PrjId=Meditation&ActCode=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Mindfulness Meditation Survey&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Mindfulness Meditation Survey " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='saveApplicationUsage("363","Shabash – Birthday mailer consent")' href="javascript:wdam_window=openWindow('http://banvm034.apac.bosch.com/ShabashConsent/Survey.aspx?act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951',700,850)" style='cursor:pointer'>Shabash – Birthday mailer consent&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Shabash – Birthday mailer consent " data-toggle="tooltip" title="Add to favourite"></span></li></ul></div><div class="col-md-6 tm-p-l-0"><ul class="list-unstyled"><li><a title='' onclick='saveApplicationUsage("348","Survey Tool")' href="javascript:OpenPROMISE('http://banvm034.apac.bosch.com/SurveyTool')" style='cursor:pointer'>Survey Tool&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Survey Tool " data-toggle="tooltip" title="Add to favourite"></span></li></div></div></div></div><div class="fav-card-content fav-drop-card"><div class="col-xs-12 p-0 item-content7"><div class="col-md-12"><h4>General</h4><div class="col-md-6 p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-Canteen-EN");saveApplicationUsage("274","Canteen Home page")' style='cursor:pointer' >Canteen Home page&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-05_RBEI_Topics-EN");saveApplicationUsage("280","Company Goals")' style='cursor:pointer' >Company Goals&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("file://///bosch.com/DfsRB/DfsIN/LOC/Kor/COR/CTG/01_CTG/Access_to_All/CTG_BGN/UBK_Cost_Center_Table.xls");saveApplicationUsage("276","Cost Center Table (IE Only)")' style='cursor:pointer' >Cost Center Table (IE Only)&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='CVMS' onclick='saveApplicationUsage("260","Customer Visit Managment System(Firefox Only)")' href="javascript:OpenPROMISE('http://banvm034.apac.bosch.com/CVMS')" style='cursor:pointer'>Customer Visit Managment System(Firefox Only)&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Customer Visit Managment System(Firefox Only) " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='Works in Internet Explorer Only' onclick='OpenInSeparateWindow("https://connect.bosch.com/wikis/home?lang=en-us#!/wiki/Wda7e2f1cbc94_4329_be61_0789a7a2c6ca/page/Welcome%20to%20IT%204%20Global%20Business%20@%20RBEI");saveApplicationUsage("278","FAQ - BGSW IT for Global Business(IE Only)")' style='cursor:pointer' >FAQ - BGSW IT for Global Business(IE Only)&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("file://///bosch.com/DfsRB/DfsIN/LOC/Kor/COR/CTG/01_CTG/Access_to_All/CTG_BGN/UBK-Budget Code and Fund.xlsx");saveApplicationUsage("279","Fund & Budget Code Table")' style='cursor:pointer' >Fund & Budget Code Table&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://sgpvm070:8080/pkit/go/pelement.do?id=54100&type=Process&anon=1");saveApplicationUsage("284","General information about Robert Bosch Engineering")' style='cursor:pointer' >General information about Robert Bosch Engineering&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://rb-hunt.apac.bosch.com/SitePages/Homepage.aspx");saveApplicationUsage("345","HUNT")' style='cursor:pointer' >HUNT&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt HUNT " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_corpfunc_-C_ISP_Cryptography-EN");saveApplicationUsage("277","Information on Encryption / Signature")' style='cursor:pointer' >Information on Encryption / Signature&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-01_about_rbei_xxx_4-EN");saveApplicationUsage("286","Information on BGSW Quality Policy")' style='cursor:pointer' >Information on BGSW Quality Policy&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_corpfunc_-C_ISP_Guideline_RB-GF_105-EN");saveApplicationUsage("281","Information on Security and guidelines (RB/GF 105)")' style='cursor:pointer' >Information on Security and guidelines (RB/GF 105)&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://sgpvm070:8080/pkit/go/pelement.do?id=330176&type=Method&anon=1");saveApplicationUsage("283","Internet Security - Minimize the Risk ")' style='cursor:pointer' >Internet Security - Minimize the Risk&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li></ul></div><div class="col-md-6 tm-p-l-0"><ul class="list-unstyled"><li><a title='' onclick='OpenInSeparateWindow("/ONP/");saveApplicationUsage("339","Overnight Parking Tool")' style='cursor:pointer' >Overnight Parking Tool&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Overnight Parking Tool " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside.bosch.com/irj/portal/?NavigationTarget=HLPFS://wcms_rgap_Bosch_20GlobalNet/wcms_rgap_02_20Organization/wcms_rgap_Regional_20Subsidiaries_20RG/wcms_rgap_Bosch_20India/wcms_rgap_02_bosch_india_organization/wcms_rgap_RBEI/wcms_rgap_05_RBEI_Topics-https://inside-ws.bosch.com/FIRSTspiritWeb/wcms/wcms_rgap/en/bosch_globalnet/02_organization/regional_subsidiaries_rg/bosch_india/02_bosch_india_organization/rbei/05_rbei_topics/standard_page_83.html&NavigationContext=HLPFS://wcms_rgap_Bosch_20GlobalNet/wcms_rgap_02_20Organization/wcms_rgap_Regional_20Subsidiaries_20RG/wcms_rgap_Bosch_20India/wcms_rgap_02_bosch_india_organization/wcms_rgap_RBEI/wcms_rgap_05_RBEI_Topics");saveApplicationUsage("282","BGSW Holidays")' style='cursor:pointer' >BGSW Holidays&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("http://sgpvm070:8080/pkit/go/pelement.do?id=54100&type=Process&anon=1");saveApplicationUsage("285","BGSW ISP rules")' style='cursor:pointer' >BGSW ISP rules&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://connect.bosch.com/communities/service/html/communityview?communityUuid=2b5e2ab8-2c33-4b3d-8bd8-2529920bd73a#fullpageWidgetId=We4354d0fe6a8_4c21_ae9c_1ea52cb6d031&file=b62de9f2-f455-44cd-aa6b-a66e47628de0");saveApplicationUsage("293","Social Counseling @BGSW")' style='cursor:pointer' >Social Counseling @BGSW&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='Space Management System' onclick='OpenInSeparateWindow("/space/");saveApplicationUsage("262","Space Management – who’s where?")' style='cursor:pointer' >Space Management – who’s where?&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg Space Management – who’s where? " data-toggle="tooltip" title="Remove from favourite"  ></span></li><li><a title='' onclick='OpenInSeparateWindow("https://flexibook.boschassociatearena.com/#/home");saveApplicationUsage("319","Agile Work Space")' style='cursor:pointer' >Agile Work Space&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Agile Work Space " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside.bosch.com/irj/portal/fiori#WorkflowTask-displayUIB?allItems=true&");saveApplicationUsage("263","Unified Inbox")' style='cursor:pointer' >Unified Inbox&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star pull-right bookmarkIt m-r--5 fa-lg Unified Inbox " data-toggle="tooltip" title="Remove from favourite"  ></span></li><li><a title='' onclick='OpenInSeparateWindow("file://///bosch.com/DfsRB/DfsIN/LOC/Kor/QMM/RBIN_QMS/Corporate_Process/Information_Security/QMS3_Rules/QSR_Policy_Acceptable_Usage_Information_Systems.doc");saveApplicationUsage("273","User Access Agreement")' style='cursor:pointer' >User Access Agreement&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='OpenInSeparateWindow("https://inside-ws.bosch.com/FIRSTspiritWeb/permlink/wcms_rgap_-Canteen-EN");saveApplicationUsage("275","View Canteen Menu")' style='cursor:pointer' >View Canteen Menu&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-info pull-right fa-lg"></span></li><li><a title='' onclick='saveApplicationUsage("259","Visitor Management System")' href="https://sgpvmc0188.apac.bosch.com/Bosch/Appointment/CrtAppointment.aspx" style='cursor:pointer'>Visitor Management System&nbsp;</a><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Visitor Management System " data-toggle="tooltip" title="Add to favourite"></span></li><li><a title='BGN work list approvals including Invoice and Payment Vouchers' onclick='OpenInSeparateWindow("https://inside.bosch.com/irj/portal/anonymous/login?NavigationTarget=navurl://e4404093b306ee2ea6fcebb40aa58eed");saveApplicationUsage("185","Workflow Approval")' style='cursor:pointer' >Workflow Approval&nbsp;</a><img  src="/LandingPage/Images/NewWindow.png" style="width:10px; height:10px;"/><span class="fa fa-star-o pull-right m-r--5 fa-lg bookmarkIt Workflow Approval " data-toggle="tooltip" title="Add to favourite"></span></li></div></div></div></div>
+                </div>
+            </div>
+        </div>
+        <!-- favourite row end  -->
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-12">
+                    <!-- <p><span class="c-point">Archive</span><span class="c-point" data-toggle="modal" data-target="#advmodal">Annoucements</span></p> -->
+                    <button class="btn btn-link archive-btn" data-toggle="collapse" data-target="#archive">Archive</button>
+                    
+                    <div class="col-xs-12 collapse p-0" id="archive">
+                        <div class="col-md-4"><ul class="list-unstyled"><li><a title='Attendance for period March 2012 and before' onclick='saveApplicationUsage("137","Attendance Details")' href='Home/CallPostMethod?url=/helpdesk/ARS/main.asp' style='cursor:pointer'> Attendance Details&nbsp;</a></li><li><a title='' onclick='saveApplicationUsage("118","Audit Automation System")' href="/helpdesk/AAS/Audit_main.asp?act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Audit Automation System&nbsp;</a></li><li><a title='For period (March 2012 and before)' onclick='saveApplicationUsage("139","BoB Details")' href="/Helpdesk/bob/bobmain.asp?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>BoB Details&nbsp;</a></li><li><a title='For period (April 2012 and before)' onclick='saveApplicationUsage("136","Compensation Letters")' href="/CompensationLetter/EmpRevisionSelect.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Compensation Letters&nbsp;</a></li><li><a title='Form16 for (FY11-12 and before)' onclick='saveApplicationUsage("133","Form-16")' href="/MIS_RetiralBenifits_2013/EmpView.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Form-16&nbsp;</a></li><li><a title='IT Enquiry for (FY11-12 and before)' onclick='saveApplicationUsage("134","Income Tax Enquiry")' href='Home/CallPostMethod?url=/IncometaxInquiry/TaxForm.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951' style='cursor:pointer'> Income Tax Enquiry&nbsp;</a></li></ul></div><div class="col-md-4"><ul class="list-unstyled"><li><a title='' onclick='saveApplicationUsage("143","Organization Trainings")' href='Home/CallPostMethod?url=/TIS/PresentationLayer/Home.aspx' style='cursor:pointer'> Organization Trainings&nbsp;</a></li><li><a title='Payslip for (March 2012 and before)' onclick='saveApplicationUsage("135","Payslip")' href='Home/CallPostMethod?url=/mis_payslip/default.aspx?act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951' style='cursor:pointer'> Payslip&nbsp;</a></li><li><a title='' onclick='saveApplicationUsage("165","PQSR")' href="/mis_pqsr/Home.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>PQSR&nbsp;</a></li><li><a title='' onclick='saveApplicationUsage("113","PRED")' href="/olps/LoginAuthentication.aspx?act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>PRED&nbsp;</a></li><li><a title='' onclick='saveApplicationUsage("164","ProjIS")' href="/helpdesk/Projis/main.asp?act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>ProjIS&nbsp;</a></li><li><a title='' onclick='saveApplicationUsage("116","Reimbursement")' href="/Reimbursment/Main.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Reimbursement&nbsp;</a></li></ul></div><div class="col-md-4"><ul class="list-unstyled"><li><a title='' onclick='saveApplicationUsage("217","Retiral Benefits")' href="/MIS_RetiralBenifits_2013/EmpView.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Retiral Benefits&nbsp;</a></li><li><a title='For period (March 2012 and before)' onclick='saveApplicationUsage("138","Retiral Benefits")' href="/MIS_RETIRALBENEFITS/MIS_RB_Web/RB_Login.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Retiral Benefits&nbsp;</a></li><li><a title='' onclick='saveApplicationUsage("170","TelMe")' href="/MIS_TelMe/Home.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>TelMe&nbsp;</a></li><li><a title='' onclick='saveApplicationUsage("173","Travel Claim")' href="/ReimbTravelPayment/Index.aspx?Act=RYepc32KWjnnu69IKjOe02052022110552665307237437346951" style='cursor:pointer'>Travel Claim&nbsp;</a></li></div></div>
+                    </div>
+                </div>
+                <div class="col-md-12 text-right">
+                    <p>Inside BGSW page process owner - BGSW/BPM-IT. Brought to you by CI/BTE-AP</p>
+                </div>
+            </div>
+        </div>
+    </footer>
+    <!-- End of footer -->
+    <!-- ChatBot card start -->
+    <!-- onclick="return getIframeText()"-->
+    <img class="chatBuddyBox" ID="btnsendBot" style="width: 58px; height: 74px; cursor: pointer;"   src="/LandingPage/Images/AskEva1.png">
+    <!-- ChatBot card End -->
+    <!-- feedback card start -->
+    <div class="feedback"><img src="/LandingPage/Images/comment.png" alt=""><span class="feedback-text">Feedback</span></div>
+
+    <div class="feedback-box animated">
+        <span class="feedback-box-close">&times;</span>
+        <h3>Feedback</h3>
+        <div class="form-group m-t-25">
+            <label for="">Module</label>
+            <select class="form-control" id="ddlModule"></select>
+        </div>
+        <div class="form-group m-t-25">
+            <label for="">Functionality</label>
+            <textarea class="form-control" rows="2" id="txtFunctionality"></textarea>
+        </div>
+        <div class="form-group rating">
+            <input type="text" id="ratingtext" style="display: none" />
+
+            <label class="fa fa-star-o fa-4x" data-rate="1">
+                <input type="radio" name="ratingStar" class="HideRadio" value="1" />
+            </label>
+
+            <label class="fa fa-star-o fa-4x" data-rate="2">
+                <input type="radio" name="ratingStar" class="HideRadio" value="2" />
+            </label>
+            <label class="fa fa-star-o fa-4x" data-rate="3">
+                <input type="radio" name="ratingStar" class="HideRadio" value="3" />
+            </label>
+            <label class="fa fa-star-o fa-4x" data-rate="4">
+                <input type="radio" name="ratingStar" class="HideRadio" value="4" />
+            </label>
+            <label class="fa fa-star-o fa-4x" data-rate="5">
+                <input type="radio" name="ratingStar" class="HideRadio" value="5" />
+            </label>
+        </div>
+        <div class="form-group">
+            <label for="">Comment here</label>
+            <textarea class="form-control" rows="3" id="txtComments"></textarea>
+        </div>
+        <div class="form-group m-b-0">
+            <button class="btn btn-primary send-btn" id="btnSend">Send</button>
+        </div>
+    </div>
+
+    <div class="feedback-box-overlay"></div>
+    <!-- feedback card end  -->
+
+    <!-- Alert box - Start  -->
+    <div id="advmodaldialog" class="modal" role="dialog">
+        <div class="modal-dialog modal-sm" style="margin-top: 40vh;">
+            <div class="modal-content" style="border-radius:0px;">
+                <div class="modal-header" style="border:none">
+                    <button type="button" class="close" data-dismiss="modal">
+                        &times;
+                    </button>
+                    <h4 class="modal-title"> Information </h4>
+                </div>
+                <div class="modal-body text-center" id="dialogresult">
+
+                </div>
+                <div class="modal-footer" style="border:none">
+                    <button class="btn btn-primary A-Button A-Button--primary A-Button--regular white" data-dismiss="modal" style="padding:15px 30px;">Ok</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- Alert box - End  -->
+
+    <!-- #Your3DMatters Survey Alert box - Start  -->
+
+    <div class="modal modal-survey" id="Surveymodaldialog" role="dialog" >
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <div> <img src="/LandingPage/images/3Dmatters4.png" class="rightImg" /> </div>
+                    <div class="modal-title">
+                        <img src="/LandingPage/images/your3D.png" />
+                    </div>
+                    <div class="modal-body">
+                        <p>Am I getting FUTURE READY for <img src="/LandingPage/images/Nxt.png" />? </p>
+                        
+                        
+                        
+                        <p><span class="f-bold">Q :</span> Why am I getting this pop-up message for so many days?</p>
+                        <p><span class="f-bold">A :</span> Ooops! I have not yet submitted the survey.</p>
+                        <br />
+                        <p><span class="f-bold">Q :</span> How can I complete it?</p>
+                        <p><span class="f-bold">A :</span> Oh yes!.. I recall the link is <a href="#" target="_blank" id="UniqueSurveyLink">here</a>. It was that simple! </p>
+                        
+                    </div>
+                    <div class="modal-footer">
+                        <div id="divFooterContent">
+                            
+                            
+
+                            
+                            <div class="col-md-6 remindBtn"><button id="btnSurveyCompleted" type="button" class="btn btn-default">I am happy I just completed the survey</button></div>
+                            <div class="col-md-6 completeBtn"> <button id="btnSurveyRemind" type="button" class="btn btn-default">Keep reminding me till I submit the survey</button></div>
+                            <br /><br /><br />
+                            <div class="col-md-12 text-left" style="padding-left:0px; margin-top: 5px">
+                                <span class="f-bold">Further contact: <a href="mailto:Reimagining-Digital.RBEIORG@bcn.bosch.com">Reimagining-Digital.RBEIORG@bcn.bosch.com</a></span>
+                            </div>
+                            
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- #Your3DMatters Survey Alert box - End  -->
+
+    <script src="/LandingPage/Scripts/jquery.min.js"></script>
+    <script src="/LandingPage/Scripts/jquery-ui.js"></script>
+    <script src="/LandingPage/Scripts/bootstrap.min.js"></script>
+    <script src="/LandingPage/Scripts/jquery.mCustomScrollbar.concat.min.js"></script>
+    <script src="/LandingPage/Scripts/script.js"></script>
+    
+    <script src="https://rb-atm-wp2.apac.bosch.com/Content/SystemJS/helper_external.js"></script>
+    <script>
+        var surveyClosure = convertStringToDate('2019-11-31');
+        var surveyPopupButtonHide = convertStringToDate('2019-11-30');
+
+        (function ($) {
+            $(window).on("load", function () {
+                $(".favourites .fav-card-content").mCustomScrollbar({
+                    theme: "dark"
+                });
+            });
+        })(jQuery);
+
+        //QLink
+        //'https://rb-atm-wq1.apac.bosch.com/unichatter/home/index_?b=6f88f5cc-f5fb-40af-abc0-b74e82962e34'
+        $(document).ready(function () {
+            var width = window.innerWidth * 0.38; 
+            var height = width * 2.3 * window.innerHeight / window.innerWidth;
+            //INC000018408137 P Link 
+            //alert('width:' + width + '; height:' + height);
+            //INC000019355379 P link change - 25/Jan/2020
+            renderMychatbot($('#btnsendBot'), 'https://rb-atm-wp2.apac.bosch.com/unichat/home/index?b=9066beca-d9f4-49b0-a399-9b923373507e', width + 'px', height + 'px');
+            
+        });
+         
+    </script>
+</body>
+</html>
